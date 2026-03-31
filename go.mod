@@ -3,6 +3,7 @@ module github.com/moolen/pwncheck
 go 1.24
 
 require (
+	github.com/google/go-cmp v0.7.0
 	github.com/spf13/cobra v1.9.1
 	gopkg.in/yaml.v3 v3.0.1
 )
