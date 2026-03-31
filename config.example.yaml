@@ -1,0 +1,14 @@
+release:
+  owner: moolen
+  repo: pwncheck
+  tag: pwncheck-state
+  name: Pwncheck State
+
+repositories:
+  - name: external-secrets
+    package: ghcr.io/external-secrets/external-secrets
+    policy:
+      issuer: https://token.actions.githubusercontent.com
+      repository: external-secrets/external-secrets
+      workflowPath: .github/workflows/release.yaml
+      ref: refs/heads/main

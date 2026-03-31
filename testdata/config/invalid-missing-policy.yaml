@@ -1,0 +1,8 @@
+release:
+  owner: moolen
+  repo: pwncheck
+  tag: pwncheck-state
+  name: Pwncheck State
+repositories:
+  - name: external-secrets
+    package: ghcr.io/external-secrets/external-secrets
