@@ -1,6 +1,9 @@
 package provenance
 
-import "fmt"
+import (
+	"fmt"
+	"path"
+)
 
 type Policy struct {
 	Issuer       string
@@ -15,6 +18,10 @@ type VerifiedIdentity struct {
 	WorkflowPath string
 	Ref          string
 	Subject      string
+}
+
+func (p Policy) CertificateIdentity() string {
+	return "https://github.com/" + path.Join(p.Repository, p.WorkflowPath) + "@" + p.Ref
 }
 
 func (p Policy) Match(identity VerifiedIdentity) error {

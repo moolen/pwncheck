@@ -16,7 +16,7 @@ import (
 type Dependencies interface {
 	ListTags(ctx context.Context, repository string) ([]string, error)
 	ResolveDigest(ctx context.Context, repository string, tag string) (string, error)
-	Verify(ctx context.Context, digest string) (provenance.Result, error)
+	Verify(ctx context.Context, imageRef string, policy provenance.Policy) (provenance.Result, error)
 	LoadState(ctx context.Context, repo config.RepositoryConfig) (state.RepositoryState, bool, error)
 	SaveState(ctx context.Context, repo config.RepositoryConfig, st state.RepositoryState) error
 	Now() time.Time
@@ -31,6 +31,8 @@ func Run(ctx context.Context, deps Dependencies, cfg config.Config) (RunResult, 
 	var driftErrors []string
 
 	for _, repo := range cfg.Repositories {
+		repoUpdated := false
+		repoDrift := false
 		repoState, ok, err := deps.LoadState(ctx, repo)
 		if err != nil {
 			return RunResult{}, fmt.Errorf("load state for %s: %w", repo.Name, err)
@@ -62,16 +64,18 @@ func Run(ctx context.Context, deps Dependencies, cfg config.Config) (RunResult, 
 				repoState.Tags[tag] = record
 				repoState.UpdatedAt = deps.Now()
 				result.Updated = true
+				repoUpdated = true
 				continue
 			}
 
 			compare := state.CompareTag(baseline, record)
 			if compare.Drift {
+				repoDrift = true
 				driftErrors = append(driftErrors, fmt.Sprintf("%s:%s %s", repo.Name, tag, strings.Join(compare.Reasons, ", ")))
 			}
 		}
 
-		if result.Updated {
+		if repoUpdated && !repoDrift {
 			if err := deps.SaveState(ctx, repo, repoState); err != nil {
 				return RunResult{}, fmt.Errorf("save state for %s: %w", repo.Name, err)
 			}
@@ -91,18 +95,23 @@ func buildRecord(ctx context.Context, deps Dependencies, repo config.RepositoryC
 		return state.TagRecord{}, fmt.Errorf("resolve digest: %w", err)
 	}
 
-	provenanceResult, err := provenance.VerifyDigest(ctx, deps, digest)
-	if err != nil {
-		return state.TagRecord{}, err
-	}
-
-	policy := provenance.Policy{
+	imageRef := fmt.Sprintf("%s@%s", repo.Package, digest)
+	provenanceResult, err := provenance.VerifyImage(ctx, deps, imageRef, digest, provenance.Policy{
 		Issuer:       repo.Policy.Issuer,
 		Repository:   repo.Policy.Repository,
 		WorkflowPath: repo.Policy.WorkflowPath,
 		Ref:          repo.Policy.Ref,
+	})
+	if err != nil {
+		return state.TagRecord{}, err
 	}
-	if err := policy.Match(provenanceResult.Identity); err != nil {
+
+	if err := (provenance.Policy{
+		Issuer:       repo.Policy.Issuer,
+		Repository:   repo.Policy.Repository,
+		WorkflowPath: repo.Policy.WorkflowPath,
+		Ref:          repo.Policy.Ref,
+	}).Match(provenanceResult.Identity); err != nil {
 		return state.TagRecord{}, fmt.Errorf("policy mismatch: %w", err)
 	}
 

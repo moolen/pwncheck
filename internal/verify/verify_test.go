@@ -2,6 +2,7 @@ package verify
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +28,8 @@ func (f *fakeDeps) ResolveDigest(_ context.Context, _ string, tag string) (strin
 	return f.digests[tag], nil
 }
 
-func (f *fakeDeps) Verify(_ context.Context, digest string) (provenance.Result, error) {
+func (f *fakeDeps) Verify(_ context.Context, imageRef string, _ provenance.Policy) (provenance.Result, error) {
+	digest := imageRef[strings.LastIndex(imageRef, "@")+1:]
 	return f.provenance[digest], nil
 }
 

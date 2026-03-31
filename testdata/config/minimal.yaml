@@ -9,5 +9,5 @@ repositories:
     policy:
       issuer: https://token.actions.githubusercontent.com
       repository: external-secrets/external-secrets
-      workflowPath: .github/workflows/release.yaml
+      workflowPath: .github/workflows/release.yml
       ref: refs/heads/main

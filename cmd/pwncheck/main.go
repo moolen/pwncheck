@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type VerifyRunner func(string) error
+type VerifyRunner func(context.Context, string) error
 
 func newRootCommand(run VerifyRunner) *cobra.Command {
 	cmd := &cobra.Command{
@@ -27,7 +27,7 @@ func newVerifyCommand(run VerifyRunner) *cobra.Command {
 		Use:   "verify",
 		Short: "Verify GHCR tags against stored baseline state",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(configPath)
+			return run(cmd.Context(), configPath)
 		},
 	}
 
@@ -37,9 +37,7 @@ func newVerifyCommand(run VerifyRunner) *cobra.Command {
 }
 
 func main() {
-	cmd := newRootCommand(func(_ string) error {
-		return nil
-	})
+	cmd := newRootCommand(runVerify)
 
 	cmd.SetContext(context.Background())
 

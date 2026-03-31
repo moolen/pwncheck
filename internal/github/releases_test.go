@@ -10,10 +10,10 @@ import (
 )
 
 type fakeClient struct {
-	release     Release
-	hasRelease  bool
+	release      Release
+	hasRelease   bool
 	deletedAsset bool
-	uploaded    map[string]string
+	uploaded     map[string]string
 }
 
 func newFakeClient() *fakeClient {

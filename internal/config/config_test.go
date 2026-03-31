@@ -12,6 +12,10 @@ func TestLoadConfigParsesRepositoryPolicy(t *testing.T) {
 		t.Fatalf("package mismatch: got %q want %q", got, want)
 	}
 
+	if got, want := cfg.Repositories[0].Policy.WorkflowPath, ".github/workflows/release.yml"; got != want {
+		t.Fatalf("workflow path mismatch: got %q want %q", got, want)
+	}
+
 	if got, want := cfg.Repositories[0].Policy.Ref, "refs/heads/main"; got != want {
 		t.Fatalf("ref mismatch: got %q want %q", got, want)
 	}
