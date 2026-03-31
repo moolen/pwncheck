@@ -8,6 +8,7 @@ type RepositoryState struct {
 	SchemaVersion int                  `json:"schemaVersion"`
 	Repository    string               `json:"repository"`
 	UpdatedAt     time.Time            `json:"updatedAt"`
+	IgnoredTags   []string             `json:"ignoredTags,omitempty"`
 	Tags          map[string]TagRecord `json:"tags"`
 }
 

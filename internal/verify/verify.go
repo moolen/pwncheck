@@ -56,12 +56,25 @@ func Run(ctx context.Context, deps Dependencies, cfg config.Config) (RunResult, 
 		for _, tag := range registry.FilterSemverTags(tags) {
 			record, err := buildRecord(ctx, deps, repo, tag)
 			if err != nil {
+				if errors.Is(err, provenance.ErrProvenanceNotFound) {
+					if !ok {
+						repoState.IgnoredTags = appendUnique(repoState.IgnoredTags, tag)
+						repoState.UpdatedAt = deps.Now()
+						result.Updated = true
+						repoUpdated = true
+						continue
+					}
+					if contains(repoState.IgnoredTags, tag) {
+						continue
+					}
+				}
 				return RunResult{}, fmt.Errorf("verify %s:%s: %w", repo.Package, tag, err)
 			}
 
 			baseline, exists := repoState.Tags[tag]
 			if !exists {
 				repoState.Tags[tag] = record
+				repoState.IgnoredTags = remove(repoState.IgnoredTags, tag)
 				repoState.UpdatedAt = deps.Now()
 				result.Updated = true
 				repoUpdated = true
@@ -128,4 +141,30 @@ func buildRecord(ctx context.Context, deps Dependencies, repo config.RepositoryC
 			Subject:      provenanceResult.Identity.Subject,
 		},
 	}, nil
+}
+
+func contains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func appendUnique(values []string, target string) []string {
+	if contains(values, target) {
+		return values
+	}
+	return append(values, target)
+}
+
+func remove(values []string, target string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != target {
+			result = append(result, value)
+		}
+	}
+	return result
 }

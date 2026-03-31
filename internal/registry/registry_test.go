@@ -16,10 +16,10 @@ func (f fakeClient) ResolveDigest(_ context.Context, repository string, tag stri
 }
 
 func TestFilterSemverTags(t *testing.T) {
-	tags := []string{"latest", "v1.2.3", "1.2.4", "v1.2.3-rc.1", "main"}
+	tags := []string{"latest", "v1.2.3", "1.2.4", "v1.2.3-rc.1", "0.3.0-dev-aws-sm", "main"}
 
 	got := FilterSemverTags(tags)
-	want := []string{"1.2.4", "v1.2.3", "v1.2.3-rc.1"}
+	want := []string{"1.2.4", "v1.2.3"}
 
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("tags mismatch (-want +got):\n%s", diff)

@@ -30,7 +30,11 @@ func (f *fakeDeps) ResolveDigest(_ context.Context, _ string, tag string) (strin
 
 func (f *fakeDeps) Verify(_ context.Context, imageRef string, _ provenance.Policy) (provenance.Result, error) {
 	digest := imageRef[strings.LastIndex(imageRef, "@")+1:]
-	return f.provenance[digest], nil
+	result, ok := f.provenance[digest]
+	if !ok {
+		return provenance.Result{}, provenance.ErrProvenanceNotFound
+	}
+	return result, nil
 }
 
 func (f *fakeDeps) LoadState(_ context.Context, repo config.RepositoryConfig) (state.RepositoryState, bool, error) {
@@ -65,7 +69,7 @@ func testConfig() config.Config {
 				Policy: config.ProvenancePolicy{
 					Issuer:       "https://token.actions.githubusercontent.com",
 					Repository:   "external-secrets/external-secrets",
-					WorkflowPath: ".github/workflows/release.yaml",
+					WorkflowPath: ".github/workflows/release.yml",
 					Ref:          "refs/heads/main",
 				},
 			},
@@ -84,7 +88,7 @@ func TestRunBootstrapsMissingBaseline(t *testing.T) {
 				Identity: provenance.VerifiedIdentity{
 					Issuer:       "https://token.actions.githubusercontent.com",
 					Repository:   "external-secrets/external-secrets",
-					WorkflowPath: ".github/workflows/release.yaml",
+					WorkflowPath: ".github/workflows/release.yml",
 					Ref:          "refs/heads/main",
 				},
 			},
@@ -125,7 +129,7 @@ func TestRunFlagsDriftForExistingTagDigestChange(t *testing.T) {
 				Identity: provenance.VerifiedIdentity{
 					Issuer:       "https://token.actions.githubusercontent.com",
 					Repository:   "external-secrets/external-secrets",
-					WorkflowPath: ".github/workflows/release.yaml",
+					WorkflowPath: ".github/workflows/release.yml",
 					Ref:          "refs/heads/main",
 				},
 			},
@@ -158,7 +162,7 @@ func TestRunAddsNewTagsWithoutFailing(t *testing.T) {
 				Identity: provenance.VerifiedIdentity{
 					Issuer:       "https://token.actions.githubusercontent.com",
 					Repository:   "external-secrets/external-secrets",
-					WorkflowPath: ".github/workflows/release.yaml",
+					WorkflowPath: ".github/workflows/release.yml",
 					Ref:          "refs/heads/main",
 				},
 			},
@@ -168,7 +172,7 @@ func TestRunAddsNewTagsWithoutFailing(t *testing.T) {
 				Identity: provenance.VerifiedIdentity{
 					Issuer:       "https://token.actions.githubusercontent.com",
 					Repository:   "external-secrets/external-secrets",
-					WorkflowPath: ".github/workflows/release.yaml",
+					WorkflowPath: ".github/workflows/release.yml",
 					Ref:          "refs/heads/main",
 				},
 			},
@@ -182,5 +186,71 @@ func TestRunAddsNewTagsWithoutFailing(t *testing.T) {
 
 	if !result.Updated {
 		t.Fatal("expected baseline update for new tag")
+	}
+}
+
+func TestRunSkipsLegacyTagsWithoutProvenanceDuringBootstrap(t *testing.T) {
+	deps := &fakeDeps{
+		tags:    []string{"v0.1.0", "v1.2.3"},
+		digests: map[string]string{"v0.1.0": "sha256:old", "v1.2.3": "sha256:abc"},
+		provenance: map[string]provenance.Result{
+			"sha256:abc": {
+				ProvenanceDigest: "sha256:prov",
+				SubjectDigest:    "sha256:abc",
+				Identity: provenance.VerifiedIdentity{
+					Issuer:       "https://token.actions.githubusercontent.com",
+					Repository:   "external-secrets/external-secrets",
+					WorkflowPath: ".github/workflows/release.yml",
+					Ref:          "refs/heads/main",
+				},
+			},
+		},
+	}
+
+	result, err := Run(context.Background(), deps, testConfig())
+	if err != nil {
+		t.Fatalf("run verify: %v", err)
+	}
+
+	if !result.Updated {
+		t.Fatal("expected bootstrap to update baseline")
+	}
+
+	saved := deps.saved["external-secrets"]
+	if len(saved.IgnoredTags) != 1 || saved.IgnoredTags[0] != "v0.1.0" {
+		t.Fatalf("ignored tags mismatch: %#v", saved.IgnoredTags)
+	}
+}
+
+func TestRunAllowsPreviouslyIgnoredLegacyTag(t *testing.T) {
+	deps := &fakeDeps{
+		baseline: map[string]state.RepositoryState{
+			"external-secrets": {
+				SchemaVersion: state.CurrentSchemaVersion,
+				Repository:    "external-secrets",
+				IgnoredTags:   []string{"v0.1.0"},
+				Tags: map[string]state.TagRecord{
+					"v1.2.3": {Tag: "v1.2.3", ManifestDigest: "sha256:abc", ProvenanceDigest: "sha256:prov"},
+				},
+			},
+		},
+		tags:    []string{"v0.1.0", "v1.2.3"},
+		digests: map[string]string{"v0.1.0": "sha256:old", "v1.2.3": "sha256:abc"},
+		provenance: map[string]provenance.Result{
+			"sha256:abc": {
+				ProvenanceDigest: "sha256:prov",
+				SubjectDigest:    "sha256:abc",
+				Identity: provenance.VerifiedIdentity{
+					Issuer:       "https://token.actions.githubusercontent.com",
+					Repository:   "external-secrets/external-secrets",
+					WorkflowPath: ".github/workflows/release.yml",
+					Ref:          "refs/heads/main",
+				},
+			},
+		},
+	}
+
+	if _, err := Run(context.Background(), deps, testConfig()); err != nil {
+		t.Fatalf("run verify: %v", err)
 	}
 }

@@ -146,22 +146,17 @@ func (c *RESTClient) UploadAsset(ctx context.Context, owner string, repo string,
 		return err
 	}
 	defer os.Remove(file.Name())
+	defer file.Close()
 
 	if _, err := io.Copy(file, reader); err != nil {
-		file.Close()
 		return err
 	}
 	if _, err := file.Seek(0, 0); err != nil {
-		file.Close()
 		return err
 	}
 
 	_, _, err = c.client.Repositories.UploadReleaseAsset(ctx, owner, repo, releaseID, &ghapi.UploadOptions{Name: name}, file)
-	closeErr := file.Close()
-	if err != nil {
-		return err
-	}
-	return closeErr
+	return err
 }
 
 func (c *RESTClient) DownloadAsset(ctx context.Context, owner string, repo string, assetID int64) ([]byte, error) {

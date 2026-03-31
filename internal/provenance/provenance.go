@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -29,6 +30,8 @@ type Verifier interface {
 type CosignVerifier struct {
 	Binary string
 }
+
+var ErrProvenanceNotFound = errors.New("provenance not found")
 
 func NewCosignVerifier() *CosignVerifier {
 	return &CosignVerifier{Binary: "cosign"}
@@ -117,6 +120,9 @@ func findProvenanceDigest(ctx context.Context, imageRef string) (string, string,
 
 	image, err := remote.Image(attestationTag, remote.WithContext(ctx))
 	if err != nil {
+		if strings.Contains(err.Error(), "MANIFEST_UNKNOWN") {
+			return "", "", ErrProvenanceNotFound
+		}
 		return "", "", fmt.Errorf("load attestation manifest: %w", err)
 	}
 
@@ -157,10 +163,17 @@ func findProvenanceDigest(ctx context.Context, imageRef string) (string, string,
 	switch len(matches) {
 	case 0:
 		return "", "", errors.New("no slsaprovenance attestation found")
-	case 1:
-		return matches[0].digest, matches[0].subject, nil
 	default:
-		return "", "", fmt.Errorf("found %d slsaprovenance attestations", len(matches))
+		subjectDigest := matches[0].subject
+		digests := make([]string, 0, len(matches))
+		for _, match := range matches {
+			if match.subject != subjectDigest {
+				return "", "", errors.New("provenance attestations disagree on subject digest")
+			}
+			digests = append(digests, match.digest)
+		}
+		slices.Sort(digests)
+		return strings.Join(digests, ","), subjectDigest, nil
 	}
 }
 

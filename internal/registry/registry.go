@@ -3,12 +3,11 @@ package registry
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"golang.org/x/mod/semver"
 )
 
 type DigestResolver interface {
@@ -17,6 +16,8 @@ type DigestResolver interface {
 
 type Client struct{}
 
+var stableSemverPattern = regexp.MustCompile(`^v?\d+\.\d+\.\d+$`)
+
 func NewClient() *Client {
 	return &Client{}
 }
@@ -24,11 +25,7 @@ func NewClient() *Client {
 func FilterSemverTags(tags []string) []string {
 	filtered := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		candidate := tag
-		if !strings.HasPrefix(candidate, "v") {
-			candidate = "v" + candidate
-		}
-		if semver.IsValid(candidate) {
+		if stableSemverPattern.MatchString(tag) {
 			filtered = append(filtered, tag)
 		}
 	}
